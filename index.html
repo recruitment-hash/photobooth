@@ -78,7 +78,7 @@
         <canvas id="canvas" style="display:none;"></canvas>
         
         <!-- Bingkai Transparan Baru -->
-        <img src="https://i.postimg.cc/B6gZ5GmL/JFEgram-Frame-Transparent.png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
+        <img src="https://imgur.com/a/UZBMi8C" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
     </div>
 
     <p id="status-msg" style="color:#b71c1c; font-weight:bold; min-height:20px;"></p>
@@ -105,6 +105,10 @@
             statusMsg.textContent = text;
             statusMsg.style.color = isError ? '#b71c1c' : '#2e7d32';
         }
+
+        frameImage.addEventListener('error', () => {
+            setStatus("Gagal memuat gambar bingkai (kemungkinan diblokir CORS oleh hosting gambar). Coba host gambar frame di server/folder yang sama dengan file HTML ini, lalu pakai path relatif.", true);
+        });
 
         async function startCamera() {
             // Cek dulu apakah browser ini punya akses ke API kamera sama sekali.
@@ -186,35 +190,44 @@
 
         captureBtn.addEventListener('click', () => {
             if (!video.videoWidth) {
-                alert("Kamera belum siap, mohon tunggu sebentar.");
+                setStatus("Kamera belum siap, mohon tunggu sebentar.", true);
                 return;
             }
             if (!frameImage.complete || !frameImage.naturalWidth) {
-                alert("Bingkai belum selesai dimuat, mohon tunggu sebentar.");
+                setStatus("Bingkai belum selesai dimuat, mohon tunggu sebentar.", true);
                 return;
             }
 
-            // 1. Canvas mengikuti rasio ASLI gambar bingkai (bukan rasio kamera)
-            //    supaya bingkai tidak gepeng/melar saat digambar.
-            const frameRatio = frameImage.naturalWidth / frameImage.naturalHeight;
-            const outputWidth = 1080; // resolusi output tetap tinggi & tajam
-            canvas.width = outputWidth;
-            canvas.height = Math.round(outputWidth / frameRatio);
+            try {
+                // 1. Canvas mengikuti rasio ASLI gambar bingkai (bukan rasio kamera)
+                //    supaya bingkai tidak gepeng/melar saat digambar.
+                const frameRatio = frameImage.naturalWidth / frameImage.naturalHeight;
+                const outputWidth = 1080; // resolusi output tetap tinggi & tajam
+                canvas.width = outputWidth;
+                canvas.height = Math.round(outputWidth / frameRatio);
 
-            // 2. Gambar video dengan crop "cover" agar mengisi penuh tanpa distorsi
-            drawVideoCover(ctx, video, canvas.width, canvas.height, MIRROR_CAPTURE);
+                // 2. Gambar video dengan crop "cover" agar mengisi penuh tanpa distorsi
+                drawVideoCover(ctx, video, canvas.width, canvas.height, MIRROR_CAPTURE);
 
-            // 3. Timpa dengan bingkai — sekarang ukurannya presisi sama dengan aslinya
-            ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+                // 3. Timpa dengan bingkai — sekarang ukurannya presisi sama dengan aslinya
+                ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
 
-            video.style.display = 'none';
-            canvas.style.display = 'block';
+                video.style.display = 'none';
+                canvas.style.display = 'block';
 
-            captureBtn.style.display = 'none';
-            resetBtn.style.display = 'inline-block';
-            
-            downloadBtn.href = canvas.toDataURL('image/png');
-            downloadBtn.style.display = 'inline-block';
+                captureBtn.style.display = 'none';
+                resetBtn.style.display = 'inline-block';
+
+                downloadBtn.href = canvas.toDataURL('image/png');
+                downloadBtn.style.display = 'inline-block';
+                setStatus("", false);
+            } catch (err) {
+                if (err.name === 'SecurityError') {
+                    setStatus("Gagal menyimpan foto: gambar bingkai diblokir CORS oleh hostingnya. Host gambar frame di server/folder yang sama dengan file HTML ini (same-origin), lalu pakai path relatif.", true);
+                } else {
+                    setStatus("Gagal mengambil foto: " + err.message, true);
+                }
+            }
         });
 
         resetBtn.addEventListener('click', () => {
