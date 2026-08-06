@@ -78,7 +78,7 @@
         <canvas id="canvas" style="display:none;"></canvas>
         
         <!-- Bingkai Transparan Baru -->
-        <img src="https://i.postimg.cc/B6gZ5GmL/JFEgram-Frame-Transparent.png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
+        <img src="https://i.postimg.cc/Wb3s0gmc/Untitled-design-(12).png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
     </div>
 
     <p id="status-msg" style="color:#b71c1c; font-weight:bold; min-height:20px;"></p>
@@ -146,7 +146,13 @@
 
         // Menggambar video ke canvas dengan mode "cover" (crop, tidak melar)
         // supaya proporsi wajah/badan tetap natural, sama seperti object-fit: cover di CSS.
-        function drawVideoCover(ctx, video, cw, ch) {
+        // MIRROR_CAPTURE = true -> membalik gambar secara horizontal saat disimpan,
+        // karena kamera depan sering mengirim frame dalam kondisi sudah ter-mirror
+        // (tulisan/logo jadi terbalik). Kalau di device kamu hasilnya malah jadi
+        // terbalik ke arah sebaliknya, ubah saja nilai ini jadi false.
+        const MIRROR_CAPTURE = true;
+
+        function drawVideoCover(ctx, video, cw, ch, mirror) {
             const vw = video.videoWidth;
             const vh = video.videoHeight;
             const videoRatio = vw / vh;
@@ -166,7 +172,16 @@
                 sx = 0;
                 sy = (vh - sh) / 2;
             }
-            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
+
+            if (mirror) {
+                ctx.save();
+                ctx.translate(cw, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
+                ctx.restore();
+            } else {
+                ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
+            }
         }
 
         captureBtn.addEventListener('click', () => {
@@ -187,7 +202,7 @@
             canvas.height = Math.round(outputWidth / frameRatio);
 
             // 2. Gambar video dengan crop "cover" agar mengisi penuh tanpa distorsi
-            drawVideoCover(ctx, video, canvas.width, canvas.height);
+            drawVideoCover(ctx, video, canvas.width, canvas.height, MIRROR_CAPTURE);
 
             // 3. Timpa dengan bingkai — sekarang ukurannya presisi sama dengan aslinya
             ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
