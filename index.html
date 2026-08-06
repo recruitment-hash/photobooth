@@ -72,7 +72,7 @@
     
     <div class="booth-container">
         <!-- Tampilan Kamera Live -->
-        <video id="video" autoplay playsinline muted></video>
+        <video id="video" playsinline muted></video>
         
         <!-- Canvas untuk hasil foto gabungan -->
         <canvas id="canvas" style="display:none;"></canvas>
@@ -81,8 +81,11 @@
         <img src="https://i.postimg.cc/Wb3s0gmc/Untitled-design-(12).png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
     </div>
 
+    <p id="status-msg" style="color:#b71c1c; font-weight:bold; min-height:20px;"></p>
+
     <div class="controls">
-        <button id="capture-btn">Ambil Foto</button>
+        <button id="start-btn">Mulai Kamera</button>
+        <button id="capture-btn" style="display:none;">Ambil Foto</button>
         <button id="reset-btn" style="display:none;" class="btn-success">Ulangi Foto</button>
         <a id="download-btn" style="display:none;" class="btn-download btn-success" download="JFEgram-Photobooth.png">Unduh Foto</a>
     </div>
@@ -91,22 +94,55 @@
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const frameImage = document.getElementById('frameImage');
+        const startBtn = document.getElementById('start-btn');
         const captureBtn = document.getElementById('capture-btn');
         const resetBtn = document.getElementById('reset-btn');
         const downloadBtn = document.getElementById('download-btn');
+        const statusMsg = document.getElementById('status-msg');
         const ctx = canvas.getContext('2d');
 
+        function setStatus(text, isError) {
+            statusMsg.textContent = text;
+            statusMsg.style.color = isError ? '#b71c1c' : '#2e7d32';
+        }
+
         async function startCamera() {
+            // Cek dulu apakah browser ini punya akses ke API kamera sama sekali.
+            // Kalau tidak (mis. dibuka di iframe tanpa allow="camera", atau di
+            // HTTP non-secure), tampilkan pesan yang jelas di layar.
+            if (!window.isSecureContext) {
+                setStatus("Gagal: halaman ini tidak dibuka lewat HTTPS/localhost, browser memblokir kamera.", true);
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                setStatus("Gagal: browser ini tidak mengizinkan akses kamera di halaman ini (kemungkinan diblokir oleh iframe/embed).", true);
+                return;
+            }
+
+            setStatus("Meminta izin kamera...", false);
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: { ideal: 1280 }, height: { ideal: 720 } } 
                 });
                 video.srcObject = stream;
+                await video.play();
+                setStatus("", false);
+                startBtn.style.display = 'none';
+                captureBtn.style.display = 'inline-block';
             } catch (err) {
-                alert("Gagal mengakses kamera. Pastikan izin kamera diaktifkan: " + err);
+                if (err.name === 'NotAllowedError') {
+                    setStatus("Izin kamera ditolak. Buka pengaturan situs di browser dan izinkan kamera, lalu muat ulang halaman.", true);
+                } else if (err.name === 'NotFoundError') {
+                    setStatus("Tidak ada kamera yang terdeteksi di perangkat ini.", true);
+                } else {
+                    setStatus("Gagal mengakses kamera: " + err.message, true);
+                }
             }
         }
-        startCamera();
+
+        // Kamera baru diminta setelah user menekan tombol -> memastikan
+        // prompt izin selalu muncul, termasuk di Safari/mobile & di dalam iframe.
+        startBtn.addEventListener('click', startCamera);
 
         // Menggambar video ke canvas dengan mode "cover" (crop, tidak melar)
         // supaya proporsi wajah/badan tetap natural, sama seperti object-fit: cover di CSS.
@@ -173,6 +209,12 @@
             resetBtn.style.display = 'none';
             downloadBtn.style.display = 'none';
             captureBtn.style.display = 'inline-block';
+        });
+
+        window.addEventListener('load', () => {
+            if (!window.isSecureContext) {
+                setStatus("Halaman ini tidak dibuka lewat HTTPS/localhost, browser akan memblokir kamera.", true);
+            }
         });
     </script>
 </body>
