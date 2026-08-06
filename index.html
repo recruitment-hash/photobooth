@@ -12,24 +12,26 @@
             margin: 0; 
             padding: 20px; 
         }
-        h2 { color: #333; margin-bottom: 20px; }
+        h2 { color: #333; margin-bottom: 15px; }
+        
         .booth-container { 
             position: relative; 
             display: inline-block; 
-            max-width: 600px; 
+            max-width: 500px; 
             width: 100%; 
             background: #000;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-        /* Video dan Canvas diatur agar proporsional */
+
         video, canvas { 
             width: 100%; 
             height: auto; 
             display: block; 
+            object-fit: cover;
         }
-        /* Lapisan bingkai di atas kamera */
+
         .frame-overlay { 
             position: absolute; 
             top: 0; 
@@ -39,6 +41,7 @@
             z-index: 10; 
             pointer-events: none; 
         }
+
         .controls { 
             margin-top: 20px; 
         }
@@ -74,8 +77,8 @@
         <!-- Canvas untuk hasil foto gabungan -->
         <canvas id="canvas" style="display:none;"></canvas>
         
-        <!-- Bingkai Transparan (Gunakan link Postimages Anda) -->
-        <img src="https://i.postimg.cc/y8yPyC6m/Gemini-Generated-Image-7r91rk7r91rk7r91.png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
+        <!-- Bingkai Transparan Baru -->
+        <img src="https://i.postimg.cc/Wb3s0gmc/Untitled-design-(12).png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
     </div>
 
     <div class="controls">
@@ -93,7 +96,6 @@
         const downloadBtn = document.getElementById('download-btn');
         const ctx = canvas.getContext('2d');
 
-        // 1. Nyalakan Kamera
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -101,48 +103,38 @@
                 });
                 video.srcObject = stream;
             } catch (err) {
-                alert("Gagal mengakses kamera. Pastikan izin kamera diizinkan pada browser: " + err);
+                alert("Gagal mengakses kamera. Pastikan izin kamera diaktifkan: " + err);
             }
         }
         startCamera();
 
-        // 2. Logika Ambil Foto & Gabungkan dengan Bingkai
         captureBtn.addEventListener('click', () => {
             if (!video.videoWidth) {
                 alert("Kamera belum siap, mohon tunggu sebentar.");
                 return;
             }
 
-            // Atur ukuran canvas sesuai resolusi asli video kamera
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
-            // Gambar tangkapan layar video ke canvas (Lapisan Bawah)
+            // 1. Gambar video kamera ke canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Gambar bingkai transparan di atas video secara presisi (Lapisan Atas)
-            // Karena bingkai berukuran pas 1:1 dengan rasio video, kita taruh di (0,0) seluas canvas
-            if (frameImage.complete && frameImage.naturalWidth !== 0) {
+            // 2. Timpa dengan gambar bingkai baru
+            if (frameImage.complete) {
                 ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
-            } else {
-                console.warn("Bingkai belum sepenuhnya termuat, mencoba menggambar ulang...");
             }
 
-            // Sembunyikan video live, tampilkan hasil gambar di canvas
             video.style.display = 'none';
             canvas.style.display = 'block';
 
-            // Ubah tombol kontrol
             captureBtn.style.display = 'none';
             resetBtn.style.display = 'inline-block';
             
-            // Siapkan tautan unduh otomatis
-            const dataURL = canvas.toDataURL('image/png');
-            downloadBtn.href = dataURL;
+            downloadBtn.href = canvas.toDataURL('image/png');
             downloadBtn.style.display = 'inline-block';
         });
 
-        // 3. Logika Tombol Ulangi
         resetBtn.addEventListener('click', () => {
             canvas.style.display = 'none';
             video.style.display = 'block';
