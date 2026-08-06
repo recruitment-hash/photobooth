@@ -5,15 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JFEgram Photo Booth</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #f0f2f5; margin: 0; padding: 20px; }
-        .booth-container { position: relative; display: inline-block; max-width: 500px; width: 100%; }
-        video, canvas { width: 100%; border-radius: 10px; display: block; }
-        /* Area transparan untuk lubang kamera di tengah template */
-        .camera-feed { position: absolute; top: 22%; left: 11%; width: 78%; height: 50%; object-fit: cover; z-index: 1; border-radius: 20px; }
-        .frame-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-        .controls { margin-top: 15px; }
-        button { padding: 10px 20px; font-size: 16px; background: #d32f2f; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #b71c1c; }
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background: #f0f2f5; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        h2 { color: #333; margin-bottom: 20px; }
+        .booth-container { 
+            position: relative; 
+            display: inline-block; 
+            max-width: 600px; 
+            width: 100%; 
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        /* Video dan Canvas diatur agar proporsional */
+        video, canvas { 
+            width: 100%; 
+            height: auto; 
+            display: block; 
+        }
+        /* Lapisan bingkai di atas kamera */
+        .frame-overlay { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 10; 
+            pointer-events: none; 
+        }
+        .controls { 
+            margin-top: 20px; 
+        }
+        button, .btn-download { 
+            padding: 12px 24px; 
+            font-size: 16px; 
+            font-weight: bold;
+            background: #d32f2f; 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin: 5px; 
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        button:hover, .btn-download:hover { 
+            background: #b71c1c; 
+        }
+        .btn-success { background: #2e7d32; }
+        .btn-success:hover { background: #1b5e20; }
     </style>
 </head>
 <body>
@@ -22,54 +69,87 @@
     
     <div class="booth-container">
         <!-- Tampilan Kamera Live -->
-        <video id="video" class="camera-feed" autoplay playsinline></video>
-        <!-- Canvas untuk hasil foto -->
-        <canvas id="canvas" class="camera-feed" style="display:none;"></canvas>
+        <video id="video" autoplay playsinline muted></video>
         
-        <!-- Masukkan link template bingkai PNG transparan Anda di sini -->
-        <img src="https://i.postimg.cc/y8yPyC6m/Gemini-Generated-Image-7r91rk7r91rk7r91.png" class="frame-overlay" alt="Frame Booth">
+        <!-- Canvas untuk hasil foto gabungan -->
+        <canvas id="canvas" style="display:none;"></canvas>
+        
+        <!-- Bingkai Transparan (Gunakan link Postimages Anda) -->
+        <img src="https://i.postimg.cc/y8yPyC6m/Gemini-Generated-Image-7r91rk7r91rk7r91.png" id="frameImage" class="frame-overlay" alt="Frame Booth" crossorigin="anonymous">
     </div>
 
     <div class="controls">
         <button id="capture-btn">Ambil Foto</button>
-        <button id="download-btn" style="display:none; background: #2e7d32;">Unduh Foto</button>
+        <button id="reset-btn" style="display:none;" class="btn-success">Ulangi Foto</button>
+        <a id="download-btn" style="display:none;" class="btn-download btn-success" download="JFEgram-Photobooth.png">Unduh Foto</a>
     </div>
 
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
+        const frameImage = document.getElementById('frameImage');
         const captureBtn = document.getElementById('capture-btn');
+        const resetBtn = document.getElementById('reset-btn');
         const downloadBtn = document.getElementById('download-btn');
+        const ctx = canvas.getContext('2d');
 
-        // Akses kamera web/ponsel
-        navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
-            .then(stream => { video.srcObject = stream; })
-            .catch(err => { alert("Gagal mengakses kamera: " + err); });
+        // 1. Nyalakan Kamera
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } } 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("Gagal mengakses kamera. Pastikan izin kamera diizinkan pada browser: " + err);
+            }
+        }
+        startCamera();
 
-        // Ambil foto
+        // 2. Logika Ambil Foto & Gabungkan dengan Bingkai
         captureBtn.addEventListener('click', () => {
+            if (!video.videoWidth) {
+                alert("Kamera belum siap, mohon tunggu sebentar.");
+                return;
+            }
+
+            // Atur ukuran canvas sesuai resolusi asli video kamera
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
+
+            // Gambar tangkapan layar video ke canvas (Lapisan Bawah)
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
+
+            // Gambar bingkai transparan di atas video secara presisi (Lapisan Atas)
+            // Karena bingkai berukuran pas 1:1 dengan rasio video, kita taruh di (0,0) seluas canvas
+            if (frameImage.complete && frameImage.naturalWidth !== 0) {
+                ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                console.warn("Bingkai belum sepenuhnya termuat, mencoba menggambar ulang...");
+            }
+
+            // Sembunyikan video live, tampilkan hasil gambar di canvas
             video.style.display = 'none';
             canvas.style.display = 'block';
-            
-            captureBtn.style.display = 'none';
-            downloadBtn.style.display = 'inline-block';
 
-            // Logika untuk menggabungkan dengan gambar frame bisa ditambahkan di sini
-            downloadBtn.href = canvas.toDataURL('image/png');
-            downloadBtn.download = 'JFEgram-Photobooth.png';
+            // Ubah tombol kontrol
+            captureBtn.style.display = 'none';
+            resetBtn.style.display = 'inline-block';
+            
+            // Siapkan tautan unduh otomatis
+            const dataURL = canvas.toDataURL('image/png');
+            downloadBtn.href = dataURL;
+            downloadBtn.style.display = 'inline-block';
         });
 
-        downloadBtn.addEventListener('click', () => {
-            // Reset kembali ke kamera jika ingin ambil foto ulang
-            video.style.display = 'block';
+        // 3. Logika Tombol Ulangi
+        resetBtn.addEventListener('click', () => {
             canvas.style.display = 'none';
-            captureBtn.style.display = 'inline-block';
+            video.style.display = 'block';
+            
+            resetBtn.style.display = 'none';
             downloadBtn.style.display = 'none';
+            captureBtn.style.display = 'inline-block';
         });
     </script>
 </body>
