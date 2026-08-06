@@ -77,8 +77,8 @@
         <!-- Canvas untuk hasil foto gabungan -->
         <canvas id="canvas" style="display:none;"></canvas>
         
-        <!-- Bingkai Transparan Baru -->
-        <img src="JFEgram-Frame-Transparent(1).png" id="frameImage" class="frame-overlay" alt="Frame Booth">
+        <!-- Bingkai Transparan (Nama file disesuaikan dengan spasi) -->
+        <img src="JFEgram-Frame-Transparent (1).png" id="frameImage" class="frame-overlay" alt="Frame Booth">
     </div>
 
     <p id="status-msg" style="color:#b71c1c; font-weight:bold; min-height:20px;"></p>
@@ -107,19 +107,16 @@
         }
 
         frameImage.addEventListener('error', () => {
-            setStatus("Gagal memuat gambar bingkai (kemungkinan diblokir CORS oleh hosting gambar). Coba host gambar frame di server/folder yang sama dengan file HTML ini, lalu pakai path relatif.", true);
+            setStatus("Gagal memuat gambar bingkai. Pastikan file 'JFEgram-Frame-Transparent (1).png' berada di folder/repositori yang sama persis dengan file HTML ini.", true);
         });
 
         async function startCamera() {
-            // Cek dulu apakah browser ini punya akses ke API kamera sama sekali.
-            // Kalau tidak (mis. dibuka di iframe tanpa allow="camera", atau di
-            // HTTP non-secure), tampilkan pesan yang jelas di layar.
             if (!window.isSecureContext) {
                 setStatus("Gagal: halaman ini tidak dibuka lewat HTTPS/localhost, browser memblokir kamera.", true);
                 return;
             }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                setStatus("Gagal: browser ini tidak mengizinkan akses kamera di halaman ini (kemungkinan diblokir oleh iframe/embed).", true);
+                setStatus("Gagal: browser ini tidak mengizinkan akses kamera di halaman ini.", true);
                 return;
             }
 
@@ -144,16 +141,8 @@
             }
         }
 
-        // Kamera baru diminta setelah user menekan tombol -> memastikan
-        // prompt izin selalu muncul, termasuk di Safari/mobile & di dalam iframe.
         startBtn.addEventListener('click', startCamera);
 
-        // Menggambar video ke canvas dengan mode "cover" (crop, tidak melar)
-        // supaya proporsi wajah/badan tetap natural, sama seperti object-fit: cover di CSS.
-        // MIRROR_CAPTURE = true -> membalik gambar secara horizontal saat disimpan,
-        // karena kamera depan sering mengirim frame dalam kondisi sudah ter-mirror
-        // (tulisan/logo jadi terbalik). Kalau di device kamu hasilnya malah jadi
-        // terbalik ke arah sebaliknya, ubah saja nilai ini jadi false.
         const MIRROR_CAPTURE = true;
 
         function drawVideoCover(ctx, video, cw, ch, mirror) {
@@ -164,13 +153,11 @@
 
             let sx, sy, sw, sh;
             if (videoRatio > canvasRatio) {
-                // video lebih "lebar" dari canvas -> crop kiri-kanan
                 sh = vh;
                 sw = vh * canvasRatio;
                 sx = (vw - sw) / 2;
                 sy = 0;
             } else {
-                // video lebih "tinggi" dari canvas -> crop atas-bawah
                 sw = vw;
                 sh = vw / canvasRatio;
                 sx = 0;
@@ -199,17 +186,12 @@
             }
 
             try {
-                // 1. Canvas mengikuti rasio ASLI gambar bingkai (bukan rasio kamera)
-                //    supaya bingkai tidak gepeng/melar saat digambar.
                 const frameRatio = frameImage.naturalWidth / frameImage.naturalHeight;
-                const outputWidth = 1080; // resolusi output tetap tinggi & tajam
+                const outputWidth = 1080; 
                 canvas.width = outputWidth;
                 canvas.height = Math.round(outputWidth / frameRatio);
 
-                // 2. Gambar video dengan crop "cover" agar mengisi penuh tanpa distorsi
                 drawVideoCover(ctx, video, canvas.width, canvas.height, MIRROR_CAPTURE);
-
-                // 3. Timpa dengan bingkai — sekarang ukurannya presisi sama dengan aslinya
                 ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
 
                 video.style.display = 'none';
@@ -223,7 +205,7 @@
                 setStatus("", false);
             } catch (err) {
                 if (err.name === 'SecurityError') {
-                    setStatus("Gagal menyimpan foto: gambar bingkai diblokir CORS oleh hostingnya. Host gambar frame di server/folder yang sama dengan file HTML ini (same-origin), lalu pakai path relatif.", true);
+                    setStatus("Gagal menyimpan foto karena masalah CORS (gambar bingkai tidak sepemilik/cross-origin).", true);
                 } else {
                     setStatus("Gagal mengambil foto: " + err.message, true);
                 }
