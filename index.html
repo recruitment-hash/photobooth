@@ -96,6 +96,7 @@
 
     <div class="controls">
         <button id="start-btn">Mulai Kamera</button>
+        <button id="switch-cam-btn" style="display:none;">Ganti Kamera</button>
         <button id="capture-btn" style="display:none;">Ambil Foto</button>
         <button id="record-btn" style="display:none;">Rekam Video</button>
         <button id="stop-record-btn" style="display:none;" class="btn-success">Stop Rekam</button>
@@ -112,6 +113,7 @@
         const playbackVideo = document.getElementById('playbackVideo');
         const frameImage = document.getElementById('frameImage');
         const startBtn = document.getElementById('start-btn');
+        const switchCamBtn = document.getElementById('switch-cam-btn');
         const captureBtn = document.getElementById('capture-btn');
         const recordBtn = document.getElementById('record-btn');
         const stopRecordBtn = document.getElementById('stop-record-btn');
@@ -132,6 +134,19 @@
             setStatus("Gagal memuat gambar bingkai (kemungkinan diblokir CORS oleh hosting gambar). Coba host gambar frame di server/folder yang sama dengan file HTML ini, lalu pakai path relatif.", true);
         });
 
+        // Kamera depan dipakai secara default (photo booth = selfie style).
+        // 'ideal' dipakai (bukan 'exact') supaya tetap fallback ke kamera lain
+        // kalau device-nya cuma punya satu kamera (mis. laptop/webcam eksternal).
+        let currentFacingMode = 'user';
+
+        function buildVideoConstraints() {
+            return {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: { ideal: currentFacingMode }
+            };
+        }
+
         async function startCamera() {
             // Cek dulu apakah browser ini punya akses ke API kamera sama sekali.
             // Kalau tidak (mis. dibuka di iframe tanpa allow="camera", atau di
@@ -146,11 +161,19 @@
             }
 
             setStatus("Meminta izin kamera & mikrofon...", false);
+
+            // Kalau sebelumnya sudah ada stream aktif (mis. saat ganti kamera),
+            // matikan dulu semua track lama supaya kamera tidak nyala dobel.
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+
             let stream;
             try {
                 // Minta video + audio sekaligus supaya video hasil rekaman ada suaranya.
                 stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+                    video: buildVideoConstraints(),
                     audio: true
                 });
             } catch (err) {
@@ -158,7 +181,7 @@
                 // supaya fitur foto/kamera tetap jalan, tanpa audio saat rekam video.
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: { ideal: 1280 }, height: { ideal: 720 } } 
+                        video: buildVideoConstraints()
                     });
                     setStatus("Mikrofon tidak tersedia/ditolak — video akan direkam tanpa suara.", true);
                 } catch (err2) {
@@ -178,6 +201,7 @@
                 await video.play();
                 if (!statusMsg.textContent) setStatus("", false);
                 startBtn.style.display = 'none';
+                switchCamBtn.style.display = 'inline-block';
                 captureBtn.style.display = 'inline-block';
                 recordBtn.style.display = 'inline-block';
             } catch (err) {
@@ -189,13 +213,16 @@
         // prompt izin selalu muncul, termasuk di Safari/mobile & di dalam iframe.
         startBtn.addEventListener('click', startCamera);
 
-        // Menggambar video ke canvas dengan mode "cover" (crop, tidak melar)
-        // supaya proporsi wajah/badan tetap natural, sama seperti object-fit: cover di CSS.
-        // MIRROR_CAPTURE = true -> membalik gambar secara horizontal saat disimpan,
-        // karena kamera depan sering mengirim frame dalam kondisi sudah ter-mirror
-        // (tulisan/logo jadi terbalik). Kalau di device kamu hasilnya malah jadi
-        // terbalik ke arah sebaliknya, ubah saja nilai ini jadi false.
-        const MIRROR_CAPTURE = true;
+        switchCamBtn.addEventListener('click', () => {
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            startCamera();
+        });
+
+        // Efek mirror cuma masuk akal untuk kamera depan (selfie) — kamera belakang
+        // tidak perlu di-flip. Nilai ini otomatis menyesuaikan currentFacingMode.
+        function shouldMirror() {
+            return currentFacingMode === 'user';
+        }
 
         function drawVideoCover(ctx, video, cw, ch, mirror) {
             const vw = video.videoWidth;
@@ -240,7 +267,7 @@
 
         function renderLoop() {
             if (frameImage.complete && frameImage.naturalWidth && video.videoWidth) {
-                drawVideoCover(recCtx, video, recCanvas.width, recCanvas.height, MIRROR_CAPTURE);
+                drawVideoCover(recCtx, video, recCanvas.width, recCanvas.height, shouldMirror());
                 recCtx.drawImage(frameImage, 0, 0, recCanvas.width, recCanvas.height);
             }
             renderLoopId = requestAnimationFrame(renderLoop);
@@ -367,7 +394,7 @@
                 canvas.height = Math.round(outputWidth / frameRatio);
 
                 // 2. Gambar video dengan crop "cover" agar mengisi penuh tanpa distorsi
-                drawVideoCover(ctx, video, canvas.width, canvas.height, MIRROR_CAPTURE);
+                drawVideoCover(ctx, video, canvas.width, canvas.height, shouldMirror());
 
                 // 3. Timpa dengan bingkai — sekarang ukurannya presisi sama dengan aslinya
                 ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
